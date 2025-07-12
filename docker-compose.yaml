@@ -1,0 +1,26 @@
+services:
+  cities1:
+    build: .
+    container_name: cities1
+    environment:
+      - SERVER_PORT=8181
+      - GEOKEO_API_KEY=${GEOKEO_API_KEY}
+    ports:
+      - "8181:8181"
+    networks:
+      - dist-sys-ms-network
+
+  cities2:
+    build: .
+    container_name: cities2
+    environment:
+      - SERVER_PORT=8182
+      - GEOKEO_API_KEY=${GEOKEO_API_KEY}
+    ports:
+      - "8182:8182"
+    networks:
+      - dist-sys-ms-network
+
+networks:
+  dist-sys-ms-network:
+    external: true
