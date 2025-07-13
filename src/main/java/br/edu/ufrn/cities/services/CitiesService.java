@@ -11,7 +11,7 @@ import br.edu.ufrn.cities.properties.CitiesProperties;
 import br.edu.ufrn.cities.records.distances.DistanceRequest;
 import br.edu.ufrn.cities.records.distances.DistanceResponse;
 import br.edu.ufrn.cities.records.distances.Geolocation;
-import feign.FeignException;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 
@@ -62,6 +62,7 @@ public class CitiesService {
 
     @Retry(name = "distances", fallbackMethod = "calculateDistanceFallback")
     @CircuitBreaker(name = "distances", fallbackMethod = "calculateDistanceFallback")
+    @Bulkhead(name = "distances", fallbackMethod = "calculateDistanceFallback")
     public DistanceResponse calculateDistance(
         DistanceRequest request
     ) {
