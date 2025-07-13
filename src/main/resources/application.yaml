@@ -39,7 +39,7 @@ resilience4j:
             distances:
                 slidingWindowSize: 5
                 failureRateThreshold: 50
-                waitDurationInOpenState: 30s
+                waitDurationInOpenState: 15s
 
 eureka:
     client:
