@@ -1,6 +1,9 @@
 spring:
     application:
         name: cities
+    loadbalancer:
+        ribbon:
+            enabled: false
     cloud:
         config:
             discovery:
@@ -36,8 +39,7 @@ resilience4j:
             distances:
                 slidingWindowSize: 5
                 failureRateThreshold: 50
-                waitDurationInOpenState: 10s
-
+                waitDurationInOpenState: 30s
 
 eureka:
     client:
