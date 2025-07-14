@@ -7,11 +7,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import br.edu.ufrn.cities.clients.DistancesClient;
-import br.edu.ufrn.cities.clients.GeoKeoApiClient;
-import br.edu.ufrn.cities.properties.GeoKeoApiProperties;
+import br.edu.ufrn.cities.records.clientai.AskRequest;
+import br.edu.ufrn.cities.records.clientai.AskResponse;
 import br.edu.ufrn.cities.records.distances.DistanceRequest;
 import br.edu.ufrn.cities.records.distances.DistanceResponse;
+import br.edu.ufrn.cities.records.geokeo.SearchResponse;
 import br.edu.ufrn.cities.services.CitiesService;
 
 @RestController
@@ -20,13 +20,19 @@ public class CitiesController {
     @Autowired
     private CitiesService citiesService;
 
-    // @GetMapping("/discover")
-    // public Object discover(@RequestParam("query") String query) {
-    //     return geoKeoApiClient.search(query, geoKeoApiProperties.getKey());
-    // }
-
     @PostMapping("/distance")
     public DistanceResponse distance(@RequestBody DistanceRequest request) {
         return citiesService.calculateDistance(request);
     }
+
+    @GetMapping("/ask")
+    public AskResponse ask(@RequestParam("input") String input) {
+        return citiesService.askClientAI(new AskRequest(input));
+    }
+
+    @GetMapping("/search")
+    public SearchResponse search(@RequestParam("query") String query) {
+        return citiesService.searchWithGeoKeo(query);
+    }
+
 }

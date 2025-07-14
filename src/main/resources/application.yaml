@@ -31,20 +31,39 @@ geokeo:
 resilience4j:
     retry:
         instances:
+            clientai:
+                maxAttempts: 3
+                waitDuration: 1s
             distances:
                 maxAttempts: 3
                 waitDuration: 1s
+            geokeo:
+                maxAttempts: 3
+                waitDuration: 2s
     circuitbreaker:
         instances:
+            clientai:
+                slidingWindowSize: 5
+                failureRateThreshold: 50
+                waitDurationInOpenState: 15s
             distances:
                 slidingWindowSize: 5
                 failureRateThreshold: 50
                 waitDurationInOpenState: 15s
     bulkhead:
         instances:
+            clientai:
+                maxWaitDuration: 2ms
+                maxConcurrentCalls: 20
             distances:
                 maxWaitDuration: 2ms
                 maxConcurrentCalls: 20
+    ratelimiter:
+        instances:
+            geokeo:
+                limitForPeriod: 5
+                limitRefreshPeriod: 1s
+                timeoutDuration: 500ms
 
 eureka:
     client:
