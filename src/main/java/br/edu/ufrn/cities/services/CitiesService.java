@@ -1,101 +1,41 @@
 package br.edu.ufrn.cities.services;
 
-import org.bouncycastle.jcajce.provider.keystore.util.AdaptingKeyStoreSpi;
+import java.util.Arrays;
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import br.edu.ufrn.cities.clients.ClientAIClient;
-import br.edu.ufrn.cities.clients.DistancesClient;
-import br.edu.ufrn.cities.clients.GeoKeoApiClient;
-import br.edu.ufrn.cities.enums.Unit;
-import br.edu.ufrn.cities.properties.CitiesProperties;
-import br.edu.ufrn.cities.properties.GeoKeoApiProperties;
 import br.edu.ufrn.cities.records.City;
+import br.edu.ufrn.cities.records.DiscoverCityRequest;
+import br.edu.ufrn.cities.records.DiscoverCityResponse;
 import br.edu.ufrn.cities.records.Geolocation;
+import br.edu.ufrn.cities.records.PlanTravelRequest;
+import br.edu.ufrn.cities.records.PlanTravelResponse;
 import br.edu.ufrn.cities.records.clientai.AskRequest;
 import br.edu.ufrn.cities.records.clientai.AskResponse;
 import br.edu.ufrn.cities.records.distances.DistanceRequest;
-import br.edu.ufrn.cities.records.distances.DistanceResponse;
 import br.edu.ufrn.cities.records.geokeo.SearchResponse;
-import io.github.resilience4j.bulkhead.annotation.Bulkhead;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
-import io.github.resilience4j.retry.annotation.Retry;
+import br.edu.ufrn.cities.records.geokeo.SearchResponse.Result;
 
 @Service
 public class CitiesService {
     private static final Logger logger = LoggerFactory.getLogger(CitiesService.class);
 
     @Autowired
-    private ClientAIClient clientAIClient;
+    private ClientAIService clientAIService;
 
     @Autowired
-    private DistancesClient distancesClient;
+    private DistancesService distancesService;
 
     @Autowired
-    private GeoKeoApiClient geoKeoApiClient;
+    private GeoKeoService geoKeoService;
 
-    @Autowired
-    private CitiesProperties citiesProperties;
-
-    @Autowired
-    private GeoKeoApiProperties geoKeoApiProperties;
-
-    public DistanceResponse calculateDistanceFallback(
-        DistanceRequest request,
-        Throwable t
-    ) {
-        logger.error(
-            "Fallback calculateDistanceFallback() triggered due to exception."
-        );
-        
-        Geolocation origin = request.origin();
-        Geolocation destination = request.destination();
-
-        double deltaLat = (
-            Math.max(origin.lat(), destination.lat())
-            - Math.min(origin.lat(), destination.lat())
-        );
-
-        double deltaLon = (
-            Math.max(origin.lon(), destination.lon())
-            - Math.min(origin.lon(), destination.lon())
-        );
-
-        double distance = Math.sqrt(
-            Math.pow(
-                deltaLat * citiesProperties.getKilometersPerDegree(),
-                2
-            )
-            + Math.pow(
-                deltaLon * citiesProperties.getKilometersPerDegree(),
-                2
-            ));
-
-        return new DistanceResponse(distance, Unit.KILOMETERS);
-    }
-
-    @Retry(name = "distances", fallbackMethod = "calculateDistanceFallback")
-    @CircuitBreaker(name = "distances", fallbackMethod = "calculateDistanceFallback")
-    @Bulkhead(name = "distances", fallbackMethod = "calculateDistanceFallback")
-    public DistanceResponse calculateDistance(
-        DistanceRequest request
-    ) {
-        DistanceResponse response = distancesClient.distance(request);
-
-        logger.info(
-            "Distance successfully calculated by distances function service: {}",
-            response.toString()
-        );
-
-        return response;
-    }
-
-    private String buildClientAIPrompt(String kind, String city, String country) {
+    private String buildDiscoverCityPrompt(String kind, String city, String country) {
         String prompt = String.format(
-            "Assuming I'm a traveler, tell me good {} to visit on {}, {}."
+            "Assuming I'm a traveler, tell me good %s to visit on %s, %s."
             + " Without formatting. Without markdown. Only pure text."
             + " Not too many words. Not introduction. Splitted by semicolon (;)."
             + " Without whitespace between semicolon and first char of name."
@@ -106,42 +46,73 @@ public class CitiesService {
         return prompt;
     }
 
-    public AskResponse askClientAIFallback(
-        AskRequest request,
-        Throwable t
-    ) {
-        logger.error(
-            "Fallback calculateDistanceFallback() triggered due to exception."
-        );
+    private List<String> splitBySemicolon(String placesString) {
+        List<String> places = Arrays.stream(placesString.split(";"))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .toList();
 
-        return new AskResponse(request.input(), "Unavailable");
+        return places;
     }
 
-    @Retry(name = "clientai", fallbackMethod = "askClientAIFallback")
-    @CircuitBreaker(name = "clientai", fallbackMethod = "askClientAIFallback")
-    @Bulkhead(name = "clientai", fallbackMethod = "askClientAIFallback")
-    public AskResponse askClientAI(AskRequest request) {
-        AskResponse response = clientAIClient.ask(request);
+    public DiscoverCityResponse discoverCity(DiscoverCityRequest request) {
+        String restaurantsPrompt = buildDiscoverCityPrompt("restaurants", request.name(), request.country());
+        AskResponse restaurantsAskClientAI = clientAIService.askClientAI(new AskRequest(restaurantsPrompt));
+        List<String> restaurants = splitBySemicolon(restaurantsAskClientAI.output());
 
-        logger.info(
-            "Ask successfully processed by clientai service: {}",
-            response.toString()
-        );
+        String barsPrompt = buildDiscoverCityPrompt("bars", request.name(), request.country());
+        AskResponse barsAskClientAI = clientAIService.askClientAI(new AskRequest(barsPrompt));
+        List<String> bars = splitBySemicolon(barsAskClientAI.output());
+
+        String placesPrompt = buildDiscoverCityPrompt("places", request.name(), request.country());
+        AskResponse placesAskClientAI = clientAIService.askClientAI(new AskRequest(placesPrompt));
+        List<String> places = splitBySemicolon(placesAskClientAI.output());
+
+        String storesPrompt = buildDiscoverCityPrompt("stores", request.name(), request.country());
+        AskResponse storesAskClientAI = clientAIService.askClientAI(new AskRequest(storesPrompt));
+        List<String> stores = splitBySemicolon(storesAskClientAI.output());
+
+        DiscoverCityResponse response = new DiscoverCityResponse(restaurants, bars, places, stores);
 
         return response;
     }
 
-    @Retry(name = "geokeo")
-    @RateLimiter(name = "geokeo")
-    public SearchResponse searchWithGeoKeo(String query) {
-        String key = geoKeoApiProperties.getKey();
+    private String buildSearchCityPrompt(String input) {
+        String prompt = String.format("I want the city of %s", input);
 
-        SearchResponse response = geoKeoApiClient.search(query, key);
+        return prompt;
+    }
 
-        logger.info(
-            "Search successfully retrieved by geokeo mcp service: {}",
-            response.toString()
+    private City searchCity(String input) {
+        String prompt = this.buildSearchCityPrompt(input);
+
+        SearchResponse searchResponse = geoKeoService.search(prompt);
+
+        Result bestResult = searchResponse.results().get(0);
+
+        Geolocation geolocation = new Geolocation(
+            bestResult.geometry().location().lat(),
+            bestResult.geometry().location().lng()
         );
+
+        City city = new City(
+            bestResult.address_components().name(),
+            bestResult.address_components().country(),
+            geolocation
+        );
+
+        return city;
+    }
+
+    public PlanTravelResponse planTravel(PlanTravelRequest request) {
+        City fromCity = this.searchCity(request.from());
+        City toCity = this.searchCity(request.to());
+
+        double distance = distancesService.calculateDistance(
+            new DistanceRequest(fromCity.location(), toCity.location())
+        ).distance();
+
+        PlanTravelResponse response = new PlanTravelResponse(fromCity, toCity, distance);
 
         return response;
     }

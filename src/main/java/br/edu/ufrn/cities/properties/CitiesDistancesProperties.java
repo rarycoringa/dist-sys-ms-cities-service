@@ -4,11 +4,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConfigurationProperties(prefix = "cities")
-public class CitiesProperties {
+@ConfigurationProperties(prefix = "cities.distances")
+public class CitiesDistancesProperties {
     private double kilometersPerDegree;
 
-    public CitiesProperties() {}
+    public CitiesDistancesProperties() {}
 
     public double getKilometersPerDegree() {
         return this.kilometersPerDegree;
